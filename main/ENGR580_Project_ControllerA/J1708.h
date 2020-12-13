@@ -57,7 +57,7 @@ uint8_t J1708TxBuffer[21]; //Buffer for unprinted Tx frames
 char hexDisp[4]; //Character display buffer
 uint8_t TP_Tx_Buffer[256] = {}; //Transport Protocol Buffer
 uint8_t TP_Rx_Buffer[256] = {}; //Transport Protocol Buffer
-uint8_t Loopbuffer[21]={};
+uint8_t Loopbuffer[32]={};
 
 //Functions
 uint8_t J1708Rx(uint8_t (&J1708RxFrame)[256]) {
@@ -282,8 +282,15 @@ void Abort_Handler(uint8_t TP_Data[]){
 }
 
 int parseJ1708(uint8_t J1708RxData[]){
+  if (!Loop_flag){
+    //Save the current message in the RxBuffer to a more stable 32 byte location.
+    //This also frees the J1708RxBuffer to be used in loop() after parseJ1708() is called.
+    for (int i; i<32; i++){
+      Loopbuffer[i] = J1708RxBuffer[i];
+    }
+  }
   switch(J1708RxBuffer[1]){ //MID
-/*    case 88:
+  /*  case 88:
       //Serial.println("MID 88 Received!"); //debug
       switch(J1708RxBuffer[2]){ //PID
         case 128:
@@ -564,28 +571,25 @@ int parseJ1708(uint8_t J1708RxData[]){
           }
           return 0;
           break;
+
         case 197:
           //Serial.println("PID 197 Received!"); //debug
           if (J1708RxBuffer[4]==selfMID){
             switch(J1708RxBuffer[5]){
               case 1:
                 //Serial.println("RTS Received!");
-                //Run RTS Handler
                 return 1;
                 break;
               case 2:
                 //Serial.println("CTS Received!");
-                //Run CTS Handler
                 return 2;
                 break;
               case 3:
                 //Serial.println("EOM Received!");
-                //Run EOM Handler
                 return 3;
                 break;
               case 255:
                 //Serial.println("Abort Received!");
-                //Run Abort Handler
                 return 4;
                 break;
             }
@@ -596,8 +600,9 @@ int parseJ1708(uint8_t J1708RxData[]){
           //Serial.println("PID 198 Received!"); //debug
           if (J1708RxBuffer[4]==selfMID){
             //Serial.println("CDP Received!"); //debug
-            //CDPHandler
             CDP_Handler(J1708RxData);
+            return 5;
+            break;
           }
           else{
           }
@@ -701,9 +706,6 @@ void J1708Listen() {
     if (LED1On){
       digitalWrite(LEDPin1,HIGH);
     }
-    if (!Loop_flag){
-      uint8_t Loopbuffer[J1708FrameLength] = {};
-    }
     if (ShowTime){
       Serial.print("(");
       Serial.print(micros());
@@ -722,11 +724,9 @@ void J1708Listen() {
         sprintf(hexDisp,"%02X ",J1708RxBuffer[i]);
         Serial.print(hexDisp);
       }
-      if (!Loop_flag){
-        Loopbuffer[i] = J1708RxBuffer[i-1];
-      }
     }
     if (!ShowTime && !ShowLength && !ShowRxData){
+      //Nothing will be printed because all flags set false
     }
     else{
       Serial.println();
@@ -770,7 +770,7 @@ void genECCKeys(uint8_t opMID, bool keyGen=false){
 }
 
 void storeKey(){}
-          
+
 //Message Handlers
 //Transport Protocol Functions
 bool J1708TransportTx(uint8_t TP_Data[], const uint16_t &nBytes, const uint8_t &TP_MID){
@@ -803,7 +803,6 @@ bool J1708TransportTx(uint8_t TP_Data[], const uint16_t &nBytes, const uint8_t &
     return 0;
   }
 }
-
 
 void CCSR_Handler(){}
 void CSRP_Handler(){}

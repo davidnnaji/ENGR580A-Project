@@ -18,7 +18,7 @@ uint32_t currentMillis=0;
 
 //Heartbeat Message
 const int messageLength = 32;
-uint8_t message[messageLength] = {1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32}; //Debug
+uint8_t message[messageLength] = {1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32}; //Debug Message
 
 void setup() {
   //LED1 Pin Configuration
@@ -37,9 +37,8 @@ void setup() {
   Serial3.begin(9600);
 
   //Softer startup before joining
-  delay(3000);
-  J1708Tx(message,messageLength,89);
-  
+  //delay(3000);
+  //J1708Tx(message,messageLength,89);
 }
 
 void loop() {
@@ -69,6 +68,7 @@ void loop() {
         fx=0;
         P =2000;
         Loop_flag = false;
+        J1708LoopTimer = 0;
       }
       else{
         P = 1000;
@@ -80,7 +80,7 @@ void loop() {
         //Wait Until next scheduled send.
       }
       else{
-        fx = parseJ1708(Loopbuffer);
+        fx = parseJ1708(J1708RxFrame);
         if (fx>0){
           Loop_flag = true;
         }
@@ -91,7 +91,7 @@ void loop() {
     }
   }
 
-/*  const int messageLength2 = random(1,20);
+  /*  const int messageLength2 = random(1,20);
   uint8_t message2[messageLength2] = {};
   for (int i=0; i<messageLength2-1; i++){
     message2[i] = random(0,255);
