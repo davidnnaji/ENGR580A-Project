@@ -43,7 +43,7 @@ int TP_Tx_NBytes=0;
 int TP_Tx_NSegments=0;
 uint8_t TP_Default_Segment_Size=15;
 uint8_t fx = 0;
-int P = 1000;
+uint32_t P = 1000;
 
 //Component Information
 uint8_t TractorMID = 88;
@@ -57,7 +57,7 @@ uint8_t J1708TxBuffer[21]; //Buffer for unprinted Tx frames
 char hexDisp[4]; //Character display buffer
 uint8_t TP_Tx_Buffer[256] = {}; //Transport Protocol Buffer
 uint8_t TP_Rx_Buffer[256] = {}; //Transport Protocol Buffer
-uint8_t Loopbuffer[32]={};
+uint8_t Loopbuffer[21];
 
 //Functions
 uint8_t J1708Rx(uint8_t (&J1708RxFrame)[256]) {
@@ -91,7 +91,7 @@ uint8_t J1708Rx(uint8_t (&J1708RxFrame)[256]) {
     }
     else {
       Serial.println ("Checksum failed, Message has errors.");
-      return J1708FrameLength; //debug
+      return 0; //debug
       //return 0; //data would not be valid, so pretend it didn't come
     }
   }
@@ -114,7 +114,7 @@ void TxEnable(){
   digitalWrite(RDPin,HIGH);
 }
 
-void J1708CalculateChecksum(uint8_t J1708TxData[],const uint8_t &TxFrameLength){
+void J1708AppendChecksum(uint8_t J1708TxData[],const uint8_t &TxFrameLength){
   uint8_t chk = 0;
   for (int i=0; i<(TxFrameLength-1);i++){
     chk+=J1708TxData[i];
@@ -132,7 +132,7 @@ void J1708Tx(uint8_t J1708TxData[], const uint8_t &TxFrameLength, const uint8_t 
 
   TxEnable();
   //Append checksum
-  J1708CalculateChecksum(J1708TxData,TxFrameLength);
+  J1708AppendChecksum(J1708TxData,TxFrameLength);
   J1708Timer=0;
   //Priority Delay Time
   while (J1708Timer<(104.16*TxFramePriority*2)){
@@ -187,7 +187,7 @@ bool RTS_Handler(uint8_t TP_Data[]){
 
 bool CTS_Handler(uint8_t TP_Data[]){
   Serial.print("CTS Handler Started [");Serial.print(selfMID);Serial.println("]");
-  if (!TP_Tx_Flag){
+  if (TP_Tx_Flag){
     uint8_t TP_MID=TP_Data[1];
     uint8_t TP_NSegments=TP_Data[6];
     uint8_t TP_StartSegment=TP_Data[7];
@@ -217,7 +217,7 @@ bool CTS_Handler(uint8_t TP_Data[]){
     return 1;
   }
   else{
-    Serial.print("CTS is busy but received request.");Serial.print(selfMID);Serial.println("]");
+    Serial.print("CTS handler received request but is busy or did not expext CTS. [");Serial.print(selfMID);Serial.println("]");
     //Busy. Do not Respond.
     return 0;
   }
@@ -281,423 +281,171 @@ void Abort_Handler(uint8_t TP_Data[]){
   Serial.print("Abort Handler Complete [");Serial.print(selfMID);Serial.println("]");
 }
 
-int parseJ1708(uint8_t J1708RxData[]){
+bool J1708CheckChecksum(uint8_t J1708Message[],const uint8_t &FrameLength){
+  uint8_t chk = 0;
+  for (int i=0; i<(FrameLength-1);i++){
+    chk+=J1708Message[i];
+  }
+  chk=((~chk<<24)>>24)+1;
+  if (J1708Message[FrameLength]==chk){
+    return 1;
+  }
+  else{
+    return 0;
+  }
+}
+
+int parseJ1708(){
   if (!Loop_flag){
     //Save the current message in the RxBuffer to a more stable 32 byte location.
     //This also frees the J1708RxBuffer to be used in loop() after parseJ1708() is called.
-    for (int i; i<32; i++){
-      Loopbuffer[i] = J1708RxBuffer[i];
+    //uint8_t Loopbuffer[32]={};
+    memcpy(Loopbuffer, J1708RxBuffer, 21);
+    switch(Loopbuffer[1]){ //MID
+      case 89:
+        //Serial.println("MID 89 Received!"); //debug
+        switch(Loopbuffer[2]){ //PID
+          case 128:
+            //Serial.println("PID 128 Received!"); //debug
+            if (selfMID==Loopbuffer[4]){
+              //Component-Specific Request Parameter handler
+            }
+            return 0;
+            break;
+          case 197:
+            //Serial.println("PID 197 Received!"); //debug
+            if (Loopbuffer[4]==selfMID){
+              switch(Loopbuffer[5]){
+                case 1:
+                  Serial.println("RTS Received!");
+                  //Run RTS Handler
+                  return 1;
+                  break;
+                case 2:
+                  Serial.println("CTS Received!");
+                  //Run CTS Handler
+                  return 2;
+                  break;
+                case 3:
+                  Serial.println("EOM Received!");
+                  //Run EOM Handler
+                  return 3;
+                  break;
+                case 255:
+                  Serial.println("Abort Received!");
+                  //Run Abort Handler
+                  return 4;
+                  break;
+              }
+            }
+            return 0;
+            break;
+          case 198:
+            //Serial.println("PID 198 Received!"); //debug
+            if (Loopbuffer[4]==selfMID){
+              Serial.println("CDP Received!"); //debug
+              //CDPHandler
+              return 5;
+              break;
+            }
+            else{
+            }
+            return 0;
+            break;
+
+          case 234:
+            //Serial.print("PID 234 Received!"); //debug
+            return 0;
+            break;
+          case 237:
+            //Serial.print("PID 237 Received!");
+            return 0;
+            break;
+          case 243:
+            //Serial.print("PID 243 Received!");
+            return 0;
+            break;
+          case 246:
+            //Serial.print("PID 246 Received!");
+            return 0;
+            break;
+          case 251:
+            //Serial.print("PID 251 Received!");
+            return 0;
+            break;
+          case 252:
+            //Serial.print("PID 252 Received!");
+            return 0;
+            break;
+          case 253:
+            //Serial.print("PID 253 Received!");
+            return 0;
+            break;
+
+          case 255:
+            switch(Loopbuffer[3]){
+              case 255:
+                switch(Loopbuffer[4]){
+                  case 0:
+                    //Serial.println("PID 512 Received!"); //debug
+                    //Request Parameter Handler
+                    return 0;
+                    break;
+                  case 1:
+                    //Serial.println("PID 513 Received!"); //debug
+                    //Temperature Sensor Handler
+                    return 0;
+                    break;
+                  case 128:
+                    //Serial.println("PID 640 Received!"); //debug
+                    //Component-Specific Request Parameter Handler
+                    return 0;
+                    break;
+                  case 192:
+                    //Serial.println("PID 704 Received!"); //debug
+                    //Network Security Request Handler
+                    return 0;
+                    break;
+                  case 193:
+                    //Serial.println("PID 705 Received!"); //debug
+                    //Network Security Report Handler
+                    return 0;
+                    break;
+                  case 194:
+                    //Serial.println("PID 706 Received!"); //debug
+                    //Generate python prK Handler
+                    return 0;
+                    break;
+                  case 195:
+                    //Serial.println("PID 707 Received!"); //debug
+                    //Generate python pubK Handler
+                    return 0;
+                    break;
+                  case 196:
+                    //Serial.println("PID 708 Received!"); //debug
+                    //Generate HSM prK Handler
+                    return 0;
+                    break;
+                  case 197:
+                    //Serial.println("PID 709 Received!"); //debug
+                    //Generate HSM pubK Handler
+                    return 0;
+                    break;
+                }
+                return 0;
+                break;
+            }
+        }
+        return 0;
+        break;
+      default:
+        //Serial.println("Unknown MID Received!"); //debug
+        return 0;
+        break;
     }
   }
-  switch(J1708RxBuffer[1]){ //MID
-  /*  case 88:
-      //Serial.println("MID 88 Received!"); //debug
-      switch(J1708RxBuffer[2]){ //PID
-        case 128:
-          //Serial.println("PID 128 Received!"); //debug
-          if (selfMID==J1708RxBuffer[4]){
-            //Component-Specific Request Parameter handler
-          }
-          return 0;
-          break;
-        case 197:
-          //Serial.println("PID 197 Received!"); //debug
-          if (J1708RxBuffer[4]==selfMID){
-            switch(J1708RxBuffer[5]){
-              case 1:
-                //Serial.println("RTS Received!");
-                //Run RTS Handler
-                return 1;
-                break;
-              case 2:
-                //Serial.println("CTS Received!");
-                //Run CTS Handler
-                return 2;
-                break;
-              case 3:
-                //Serial.println("EOM Received!");
-                //Run EOM Handler
-                return 3;
-                break;
-              case 255:
-                //Serial.println("Abort Received!");
-                //Run Abort Handler
-                return 4;
-                break;
-            }
-          }
-          return 0;
-          break;
-        case 198:
-          //Serial.println("PID 198 Received!"); //debug
-          if (J1708RxBuffer[4]==selfMID){
-            //Serial.println("CDP Received!"); //debug
-            //CDPHandler
-            return 5;
-            break;
-          }
-          else{
-          }
-          return 0;
-          break;
-
-        case 234:
-          //Serial.print("PID 234 Received!"); //debug
-          return 0;
-          break;
-        case 237:
-          //Serial.print("PID 237 Received!");
-          return 0;
-          break;
-        case 243:
-          //Serial.print("PID 243 Received!");
-          return 0;
-          break;
-        case 246:
-          //Serial.print("PID 246 Received!");
-          return 0;
-          break;
-        case 251:
-          //Serial.print("PID 251 Received!");
-          return 0;
-          break;
-        case 252:
-          //Serial.print("PID 252 Received!");
-          return 0;
-          break;
-        case 253:
-          //Serial.print("PID 253 Received!");
-          return 0;
-          break;
-
-        case 255:
-          switch(J1708RxBuffer[3]){
-            case 255:
-              switch(J1708RxBuffer[4]){
-                case 0:
-                  //Serial.println("PID 512 Received!"); //debug
-                  //Request Parameter Handler
-                  return 0;
-                  break;
-                case 1:
-                  //Serial.println("PID 513 Received!"); //debug
-                  //Temperature Sensor Handler
-                  return 0;
-                  break;
-                case 128:
-                  //Serial.println("PID 640 Received!"); //debug
-                  //Component-Specific Request Parameter Handler
-                  return 0;
-                  break;
-                case 192:
-                  //Serial.println("PID 704 Received!"); //debug
-                  //Network Security Request Handler
-                  return 0;
-                  break;
-                case 193:
-                  //Serial.println("PID 705 Received!"); //debug
-                  //Network Security Report Handler
-                  return 0;
-                  break;
-                case 194:
-                  //Serial.println("PID 706 Received!"); //debug
-                  //Generate python prK Handler
-                  return 0;
-                  break;
-                case 195:
-                  //Serial.println("PID 707 Received!"); //debug
-                  //Generate python pubK Handler
-                  return 0;
-                  break;
-                case 196:
-                  //Serial.println("PID 708 Received!"); //debug
-                  //Generate HSM prK Handler
-                  return 0;
-                  break;
-                case 197:
-                  //Serial.println("PID 709 Received!"); //debug
-                  //Generate HSM pubK Handler
-                  return 0;
-                  break;
-              }
-              return 0;
-              break;
-          }
-      }
-      return 0;
-      break;*/
-    case 89:
-      //Serial.println("MID 89 Received!"); //debug
-      switch(J1708RxBuffer[2]){ //PID
-        case 128:
-          //Serial.println("PID 128 Received!"); //debug
-          if (selfMID==J1708RxBuffer[4]){
-            //Component-Specific Request Parameter handler
-          }
-          return 0;
-          break;
-        case 197:
-          //Serial.println("PID 197 Received!"); //debug
-          if (J1708RxBuffer[4]==selfMID){
-            switch(J1708RxBuffer[5]){
-              case 1:
-                //Serial.println("RTS Received!");
-                //Run RTS Handler
-                return 1;
-                break;
-              case 2:
-                //Serial.println("CTS Received!");
-                //Run CTS Handler
-                return 2;
-                break;
-              case 3:
-                //Serial.println("EOM Received!");
-                //Run EOM Handler
-                return 3;
-                break;
-              case 255:
-                //Serial.println("Abort Received!");
-                //Run Abort Handler
-                return 4;
-                break;
-            }
-          }
-          return 0;
-          break;
-        case 198:
-          //Serial.println("PID 198 Received!"); //debug
-          if (J1708RxBuffer[4]==selfMID){
-            //Serial.println("CDP Received!"); //debug
-            //CDPHandler
-            CDP_Handler(J1708RxData);
-          }
-          else{
-          }
-          return 0;
-          break;
-
-        case 234:
-          //Serial.print("PID 234 Received!"); //debug
-          return 0;
-          break;
-        case 237:
-          //Serial.print("PID 237 Received!");
-          return 0;
-          break;
-        case 243:
-          //Serial.print("PID 243 Received!");
-          return 0;
-          break;
-        case 246:
-          //Serial.print("PID 246 Received!");
-          return 0;
-          break;
-        case 251:
-          //Serial.print("PID 251 Received!");
-          return 0;
-          break;
-        case 252:
-          //Serial.print("PID 252 Received!");
-          return 0;
-          break;
-        case 253:
-          //Serial.print("PID 253 Received!");
-          return 0;
-          break;
-
-        case 255:
-          switch(J1708RxBuffer[3]){
-            case 255:
-              switch(J1708RxBuffer[4]){
-                case 0:
-                  //Serial.println("PID 512 Received!"); //debug
-                  //Request Parameter Handler
-                  return 0;
-                  break;
-                case 1:
-                  //Serial.println("PID 513 Received!"); //debug
-                  //Temperature Sensor Handler
-                  return 0;
-                  break;
-                case 128:
-                  //Serial.println("PID 640 Received!"); //debug
-                  //Component-Specific Request Parameter Handler
-                  return 0;
-                  break;
-                case 192:
-                  //Serial.println("PID 704 Received!"); //debug
-                  //Network Security Request Handler
-                  return 0;
-                  break;
-                case 193:
-                  //Serial.println("PID 705 Received!"); //debug
-                  //Network Security Report Handler
-                  return 0;
-                  break;
-                case 194:
-                  //Serial.println("PID 706 Received!"); //debug
-                  //Generate python prK Handler
-                  return 0;
-                  break;
-                case 195:
-                  //Serial.println("PID 707 Received!"); //debug
-                  //Generate python pubK Handler
-                  return 0;
-                  break;
-                case 196:
-                  //Serial.println("PID 708 Received!"); //debug
-                  //Generate HSM prK Handler
-                  return 0;
-                  break;
-                case 197:
-                  //Serial.println("PID 709 Received!"); //debug
-                  //Generate HSM pubK Handler
-                  return 0;
-                  break;
-              }
-              return 0;
-              break;
-          }
-      }
-      return 0;
-      break;
-    case 90:
-      //Serial.println("MID 90 Received!"); //debug
-      switch(J1708RxBuffer[2]){ //PID
-        case 128:
-          //Serial.println("PID 128 Received!"); //debug
-          if (selfMID==J1708RxBuffer[4]){
-            //Component-Specific Request Parameter handler
-          }
-          return 0;
-          break;
-
-        case 197:
-          //Serial.println("PID 197 Received!"); //debug
-          if (J1708RxBuffer[4]==selfMID){
-            switch(J1708RxBuffer[5]){
-              case 1:
-                //Serial.println("RTS Received!");
-                return 1;
-                break;
-              case 2:
-                //Serial.println("CTS Received!");
-                return 2;
-                break;
-              case 3:
-                //Serial.println("EOM Received!");
-                return 3;
-                break;
-              case 255:
-                //Serial.println("Abort Received!");
-                return 4;
-                break;
-            }
-          }
-          return 0;
-          break;
-        case 198:
-          //Serial.println("PID 198 Received!"); //debug
-          if (J1708RxBuffer[4]==selfMID){
-            //Serial.println("CDP Received!"); //debug
-            CDP_Handler(J1708RxData);
-            return 5;
-            break;
-          }
-          else{
-          }
-          return 0;
-          break;
-
-        case 234:
-          //Serial.print("PID 234 Received!"); //debug
-          return 0;
-          break;
-        case 237:
-          //Serial.print("PID 237 Received!");
-          return 0;
-          break;
-        case 243:
-          //Serial.print("PID 243 Received!");
-          return 0;
-          break;
-        case 246:
-          //Serial.print("PID 246 Received!");
-          return 0;
-          break;
-        case 251:
-          //Serial.print("PID 251 Received!");
-          return 0;
-          break;
-        case 252:
-          //Serial.print("PID 252 Received!");
-          return 0;
-          break;
-        case 253:
-          //Serial.print("PID 253 Received!");
-          return 0;
-          break;
-
-        case 255:
-          switch(J1708RxBuffer[3]){
-            case 255:
-              switch(J1708RxBuffer[4]){
-                case 0:
-                  //Serial.println("PID 512 Received!"); //debug
-                  //Request Parameter Handler
-                  return 0;
-                  break;
-                case 1:
-                  //Serial.println("PID 513 Received!"); //debug
-                  //Temperature Sensor Handler
-                  return 0;
-                  break;
-                case 128:
-                  //Serial.println("PID 640 Received!"); //debug
-                  //Component-Specific Request Parameter Handler
-                  return 0;
-                  break;
-                case 192:
-                  //Serial.println("PID 704 Received!"); //debug
-                  //Network Security Request Handler
-                  return 0;
-                  break;
-                case 193:
-                  //Serial.println("PID 705 Received!"); //debug
-                  //Network Security Report Handler
-                  return 0;
-                  break;
-                case 194:
-                  //Serial.println("PID 706 Received!"); //debug
-                  //Generate python prK Handler
-                  return 0;
-                  break;
-                case 195:
-                  //Serial.println("PID 707 Received!"); //debug
-                  //Generate python pubK Handler
-                  return 0;
-                  break;
-                case 196:
-                  //Serial.println("PID 708 Received!"); //debug
-                  //Generate HSM prK Handler
-                  return 0;
-                  break;
-                case 197:
-                  //Serial.println("PID 709 Received!"); //debug
-                  //Generate HSM pubK Handler
-                  return 0;
-                  break;
-              }
-              return 0;
-              break;
-          }
-      }
-      return 0;
-      break;
-    default:
-      //Serial.println("Unknown MID Received!"); //debug
-      return 0;
-      break;
+  else{
+    return fx;
   }
 }
 
@@ -730,6 +478,83 @@ void J1708Listen() {
     }
     else{
       Serial.println();
+    }
+    if (int(J1708LoopTimer)>P){
+      if (fx!=0){
+        switch(fx){
+          case 1:
+            RTS_Handler(Loopbuffer);
+            break;
+          case 2:
+            CTS_Handler(Loopbuffer);
+            break;
+          case 3:
+            EOM_Handler(Loopbuffer);
+            break;
+          case 4:
+            Abort_Handler(Loopbuffer);
+            break;
+          case 5:
+            CDP_Handler(Loopbuffer);
+            break;
+          default:
+            break;
+        }
+        fx=0;
+        P =2000;
+        Loop_flag = false;
+      }
+      else{
+        P = 1000;
+        fx = parseJ1708();
+        if (fx>0){
+          Loop_flag = true;
+        }
+        else{
+          Loop_flag=false;
+        }
+      }
+      J1708LoopTimer = 0;
+    }
+    else {
+      if (fx>0){
+        //Wait Until next scheduled send.
+      }
+      else{
+        fx = parseJ1708();
+        if (fx>0){
+          Loop_flag = true;
+        }
+        else{
+          Loop_flag=false;
+        }
+      }    
+    }
+  }
+  else{
+    if (fx!=0){
+      switch(fx){
+        case 1:
+          RTS_Handler(Loopbuffer);
+          break;
+        case 2:
+          CTS_Handler(Loopbuffer);
+          break;
+        case 3:
+          EOM_Handler(Loopbuffer);
+          break;
+        case 4:
+          Abort_Handler(Loopbuffer);
+          break;
+        case 5:
+          CDP_Handler(Loopbuffer);
+          break;
+        default:
+          break;
+      }
+      fx=0;
+      P =2000;
+      Loop_flag = false;
     }
   }
   digitalWrite(LEDPin1,LOW);
@@ -769,7 +594,6 @@ void genECCKeys(uint8_t opMID, bool keyGen=false){
   }
 }
 
-void storeKey(){}
 
 //Message Handlers
 //Transport Protocol Functions
@@ -804,6 +628,7 @@ bool J1708TransportTx(uint8_t TP_Data[], const uint16_t &nBytes, const uint8_t &
   }
 }
 
+void storeKey(){}
 void CCSR_Handler(){}
 void CSRP_Handler(){}
 void RP_Handler(){}

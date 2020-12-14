@@ -37,65 +37,26 @@ void setup() {
   Serial3.begin(9600);
 
   //Softer startup before joining
-  //delay(3000);
-  //J1708Tx(message,messageLength,89);
+  delay(4000);
+  J1708TransportTx(message,messageLength,89);
 }
 
 void loop() {
   if (RxListen){
     J1708Listen();
-    if (J1708LoopTimer>P){
-      if (fx!=0){
-        switch(fx){
-          case 1:
-          RTS_Handler(Loopbuffer);
-            break;
-          case 2:
-          CTS_Handler(Loopbuffer);
-            break;
-          case 3:
-          EOM_Handler(Loopbuffer);
-            break;
-          case 4:
-          Abort_Handler(Loopbuffer);
-            break;
-          case 5:
-          CDP_Handler(Loopbuffer);
-            break;
-          default:
-            break;
-        }
-        fx=0;
-        P =2000;
-        Loop_flag = false;
-        J1708LoopTimer = 0;
-      }
-      else{
-        P = 1000;
-      }
-      J1708LoopTimer = 0;
-    }
-    else{
-      if (fx!=0){
-        //Wait Until next scheduled send.
-      }
-      else{
-        fx = parseJ1708(J1708RxFrame);
-        if (fx>0){
-          Loop_flag = true;
-        }
-        else{
-          Loop_flag=false;
-        }
-      }    
-    }
   }
-
-  /*  const int messageLength2 = random(1,20);
-  uint8_t message2[messageLength2] = {};
-  for (int i=0; i<messageLength2-1; i++){
-    message2[i] = random(0,255);
+  currentMillis=millis();
+  if ((currentMillis-previousMillis)>1000){
+    //J1708Tx(message2,5,8);
+    Serial.print("fx:");Serial.print(fx);
+    Serial.print(" Loop_flag:");Serial.print(Loop_flag);
+    Serial.print(" J1708LoopTimer:");Serial.print(J1708LoopTimer);
+    Serial.print(" Loopbuffer:");
+    for (int i=0; i<21; i++){
+      Serial.print(Loopbuffer[i]);Serial.print(" ");
+    }
+    Serial.print(" J1708Rx(*):");Serial.print(J1708Rx(J1708RxBuffer)>0);
+    Serial.println();
+    previousMillis=currentMillis;
   }
-  J1708Tx(message2,messageLength2,8);
-  delay(2000);*/
 }
