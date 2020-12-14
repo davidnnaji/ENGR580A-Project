@@ -1,9 +1,9 @@
 //const int msgLength = 9;
 //uint8_t msg[msgLength] = {89,197,5,88,1,1,1,0,0};
-//const int msgLength = 8;
-//uint8_t msg[msgLength] = {89,197,4,88,2,1,3};
-const int msgLength = 6;
-uint8_t msg[msgLength] = {89,197,2,88,3};
+const int msgLength = 8;
+uint8_t msg[msgLength] = {89,197,4,88,2,3,1};
+//const int msgLength = 6;
+//uint8_t msg[msgLength] = {89,197,2,88,3};
 //uint8_t msg[msgLength] = {0b00000000,0b00000000,0b01010110};
 const int RxEnablePin = 12;
 

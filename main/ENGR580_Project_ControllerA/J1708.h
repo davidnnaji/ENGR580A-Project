@@ -193,7 +193,10 @@ bool CTS_Handler(uint8_t TP_Data[]){
     uint8_t TP_StartSegment=TP_Data[7];
     uint8_t TP_NBytes=TP_Tx_NBytes; 
     int N=0;
-
+    int delay_time = 1;
+    if (TP_NSegments>1){
+      int delay_time = 777;
+    }
     for (int i=TP_StartSegment; i<TP_NSegments+TP_StartSegment; i++){
       if (TP_NBytes>=TP_Default_Segment_Size){
         N = TP_Default_Segment_Size;
@@ -203,6 +206,7 @@ bool CTS_Handler(uint8_t TP_Data[]){
           TP_NBytes--;
         }
         J1708Tx(CDP_message1,N+5+1,8);
+        delay(delay_time);
       }
       else{
         N = TP_NBytes;
@@ -212,6 +216,7 @@ bool CTS_Handler(uint8_t TP_Data[]){
           TP_NBytes--;
         }
         J1708Tx(CDP_message2,N+5+1,8);
+        delay(delay_time);
       }
     }
     return 1;
