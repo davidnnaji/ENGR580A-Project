@@ -28,11 +28,15 @@ bool LED2On = true;
 bool TP_Rx_Flag=false;
 bool TP_Tx_Flag=false;
 bool Loop_flag = false;
+bool Q_flag = false;
 uint8_t CryptographyFlags = 0b00000000; //X,X,X,X,X,X,pubK_Saved,prK_Saved
 
-//Variables
+//Timers
 elapsedMicros J1708Timer; //Set up a microsecond timer to run after each byte is received.
 elapsedMillis J1708LoopTimer; //Set up a microsecond timer to run after each byte is received.
+elapsedMillis Q_Timer;
+
+//Variables
 uint16_t idleTime = 3640; //Idle time is used to delimit each frame. 3640 micros minimum for T4.0 (experimental)
 uint8_t J1708FrameLength = 0;
 int J1708ByteCount;
@@ -44,6 +48,7 @@ int TP_Tx_NSegments=0;
 uint8_t TP_Default_Segment_Size=15;
 uint8_t fx = 0;
 uint32_t P = 1000;
+uint8_t Q_Counter = 0;
 
 //Component Information
 uint8_t TractorMID = 88;
@@ -51,13 +56,17 @@ uint8_t TrailerMID = 89;
 uint8_t MasterMID = 90;
 uint8_t selfMID = 89;
 
-//Buffers
+//GLobal Buffers & Arrays
 uint8_t J1708RxBuffer[256]; //Buffer for unprinted Rx frames
 uint8_t J1708TxBuffer[21]; //Buffer for unprinted Tx frames
 char hexDisp[4]; //Character display buffer
 uint8_t TP_Tx_Buffer[256] = {}; //Transport Protocol Buffer
 uint8_t TP_Rx_Buffer[256] = {}; //Transport Protocol Buffer
 uint8_t Loopbuffer[21];
+uint8_t TP_TxMessageQueue[10][21];
+uint8_t Q_Matrix[20][21];
+uint8_t Q_Lengths[20];
+uint8_t Q_Message[] = {};
 
 //Functions
 uint8_t J1708Rx(uint8_t (&J1708RxFrame)[256]) {
@@ -187,41 +196,56 @@ bool RTS_Handler(uint8_t TP_Data[]){
 
 bool CTS_Handler(uint8_t TP_Data[]){
   Serial.print("CTS Handler Started [");Serial.print(selfMID);Serial.println("]");
-  if (!TP_Tx_Flag){
+  if (TP_Tx_Flag){
     uint8_t TP_MID=TP_Data[1];
     uint8_t TP_NSegments=TP_Data[6];
     uint8_t TP_StartSegment=TP_Data[7];
     uint8_t TP_NBytes=TP_Tx_NBytes; 
     int N=0;
 
+    if (TP_NSegments>1){
+    }
     for (int i=TP_StartSegment; i<TP_NSegments+TP_StartSegment; i++){
       if (TP_NBytes>=TP_Default_Segment_Size){
         N = TP_Default_Segment_Size;
-        uint8_t CDP_message1[N+5+1]={selfMID,198,N+2,TP_MID,i};
+        Q_Lengths[i-1] = N+5+1;
+        Q_Matrix[i-1][0]=selfMID;
+        Q_Matrix[i-1][1]=198;
+        Q_Matrix[i-1][2]=N+2;
+        Q_Matrix[i-1][3]=TP_MID;
+        Q_Matrix[i-1][4]=i;
         for(int j=0; j<N;j++){
-          CDP_message1[j+5] = TP_Tx_Buffer[j+(N*(i-1))];
+          Q_Matrix[i-1][j+5] = TP_Tx_Buffer[j+(N*(i-1))];
           TP_NBytes--;
         }
-        J1708Tx(CDP_message1,N+5+1,8);
+        //J1708Tx(CDP_message1,N+5+1,8);
+        //delay(delay_time);
       }
       else{
         N = TP_NBytes;
-        uint8_t CDP_message2[N+5+1]={selfMID,198,N+2,TP_MID,i};
+        Q_Lengths[i-1] = N+5+1;
+        Q_Matrix[i-1][0]=selfMID;
+        Q_Matrix[i-1][1]=198;
+        Q_Matrix[i-1][2]=N+2;
+        Q_Matrix[i-1][3]=TP_MID;
+        Q_Matrix[i-1][4]=i;
         for (int k=0; k<N; k++){
-          CDP_message2[k+5] = TP_Tx_Buffer[k+(TP_Default_Segment_Size*(i-1))];
+          Q_Matrix[i-1][k+5] = TP_Tx_Buffer[k+(TP_Default_Segment_Size*(i-1))];
           TP_NBytes--;
         }
-        J1708Tx(CDP_message2,N+5+1,8);
+        ////J1708Tx(CDP_message2,N+5+1,8);
+        //delay(delay_time);
       }
     }
+    Q_flag = true;
+    Serial.print("CTS Handler Complete [");Serial.print(selfMID);Serial.println("]");
     return 1;
   }
   else{
-    Serial.print("CTS is busy but received request.");Serial.print(selfMID);Serial.println("]");
+    Serial.print("CTS handler received request but is busy or did not expext CTS. [");Serial.print(selfMID);Serial.println("]");
     //Busy. Do not Respond.
     return 0;
   }
-  Serial.print("CTS Handler Complete [");Serial.print(selfMID);Serial.println("]");
 }
 
 bool CDP_Handler(uint8_t TP_Data[]){
@@ -532,6 +556,24 @@ void J1708Listen() {
     }
   }
   else{
+    if (Q_flag){
+      if (Q_Timer>1000){
+        Q_Message[Q_Lengths[Q_Counter]] = {};
+        for (int i=0;i<Q_Lengths[Q_Counter];i++){
+          Q_Message[i] = Q_Matrix[Q_Counter][i];
+        }
+        J1708Tx(Q_Message,Q_Lengths[Q_Counter],8);
+        Q_Timer = 0;
+        if (Q_Counter+1==TP_Tx_NSegments){
+          Q_flag=false;
+          Q_Counter = 0;
+          Q_Matrix[20][21]={};
+          Q_Lengths[20]={};
+          Q_Timer = 0;
+        }
+        Q_Counter++;
+      }
+    }
     if (fx!=0){
       switch(fx){
         case 1:

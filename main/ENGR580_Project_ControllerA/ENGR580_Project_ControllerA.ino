@@ -45,7 +45,7 @@ void loop() {
   if (RxListen){
     J1708Listen();
   }
-  currentMillis=millis();
+  /*currentMillis=millis();
   if ((currentMillis-previousMillis)>1000){
     //J1708Tx(message2,5,8);
     Serial.print("fx:");Serial.print(fx);
@@ -55,8 +55,15 @@ void loop() {
     for (int i=0; i<21; i++){
       Serial.print(Loopbuffer[i]);Serial.print(" ");
     }
+    Serial.print(" Q_Matrix:");
+    for (int i=0; i<21; i++){
+      Serial.print(Q_Matrix[0][i]);Serial.print(" ");
+    }
     Serial.print(" J1708Rx(*):");Serial.print(J1708Rx(J1708RxBuffer)>0);
+    Serial.print(" Q_flag:");Serial.print(Q_flag);
+    Serial.print(" Q_Counter:");Serial.print(Q_Counter);
+    Serial.print(" Q_Timer:");Serial.print(Q_Timer);
     Serial.println();
     previousMillis=currentMillis;
-  }
+  }*/
 }
