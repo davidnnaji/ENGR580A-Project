@@ -632,12 +632,3 @@ bool J1708TransportTx(uint8_t TP_Data[], const uint16_t &nBytes, const uint8_t &
     return 0;
   }
 }
-
-//TODO
-void storeKey(){}
-void CCSR_Handler(){}
-void CSRP_Handler(){}
-void RP_Handler(){}
-void TS_Handler(){}
-void NSRp_Handler(){}
-void NSPq_Handler(){}
