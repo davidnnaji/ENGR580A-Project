@@ -1,0 +1,4 @@
+ To Do:
+ - Add random message function with the following arguments (MID=random(),PID=random,Data=random(),Duration=30s).
+ - Add verbose debug option that is called every time J1708Buffer > 0.
+ - Integrate preprovisioned ATEC608 to breadboard.
