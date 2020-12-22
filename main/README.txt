@@ -54,13 +54,18 @@ J1708CheckChecksum()
 	OUTPUT: T/F
 
 parseJ1708()
-	Description: Saves the current message in the global Rxbuffer to a more stable 32 byte location for later use. This new buffer will not be overwritten until it has been parsed. This frees up the Rxbuffer for to be used by the main loop() after it has been called. This function also parses the MID and PID of the message and passes it to a message handler if the PID is relevant. It will return the handler code or 0 to denote that the message isn't important.
+	Description: Saves the current message in the global Rxbuffer to a more stable 32 byte location for 
+	later use. This new buffer will not be overwritten until it has been parsed. This frees up the Rxbuffer 
+	for to be used by the main loop() after it has been called. This function also parses the MID and PID of 
+	the message and passes it to a message handler if the PID is relevant. It will return the handler code or 
+	0 to denote that the message isn't important.
 	INPUT: -
 	OUTPUT: -
 
 J1708Listen()
 	Description: This function serves as the main runtime function during loop(). It checks if a 
-	message has been received, prints it to the serial monitor, transmits messages in the Tx queue, and queues received messages for parsing.
+	message has been received, prints it to the serial monitor, transmits messages in the Tx queue, and 
+	queues received messages for parsing.
 	INPUT: -
 	OUTPUT: -
 
